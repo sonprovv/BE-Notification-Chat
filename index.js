@@ -1,43 +1,39 @@
 import express from "express";
-import { createServer } from "http";
-import { Server } from "socket.io";
-import cors from "cors";
+import dotenv from "dotenv";
+import admin from "firebase-admin";
+
+dotenv.config();
 
 const app = express();
-const server = createServer(app);
+const port = 3000;
 
-// Socket.IO setup
-const io = new Server(server, {
-  cors: {
-    origin: "*", // cho phép mọi nguồn (có thể thay bằng domain cụ thể)
-    methods: ["GET", "POST"]
+// Parse service account từ biến môi trường
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || "{}");
+
+// Khởi tạo Firebase Admin SDK
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
+// Route test kết nối Firebase
+app.get("/check-firebase", async (req, res) => {
+  try {
+    const db = admin.firestore();
+    const snapshot = await db.collection("test").get();
+
+    res.json({
+      success: true,
+      count: snapshot.size,
+      message: `Tìm thấy ${snapshot.size} document trong collection 'test'`,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
   }
 });
 
-app.use(cors());
-app.use(express.json());
-
-// Route test API
-app.get("/", (req, res) => {
-  res.json({ message: "Server is running" });
-});
-
-// Socket.IO events
-io.on("connection", (socket) => {
-  console.log(`User connected: ${socket.id}`);
-
-  socket.on("sendMessage", (msg) => {
-    console.log("Received:", msg);
-    io.emit("receiveMessage", msg); // gửi tới tất cả client
-  });
-
-  socket.on("disconnect", () => {
-    console.log(`User disconnected: ${socket.id}`);
-  });
-});
-
-// Chạy server local (port Vercel sẽ tự set)
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+app.listen(port, () => {
+  console.log(`Server chạy tại http://localhost:${port}`);
 });
